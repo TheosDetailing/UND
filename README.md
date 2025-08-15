@@ -1,48 +1,34 @@
 # Obsidian Note Generator
 
-Generate Obsidian-friendly notes using a two step process: a metadata call followed by a rich body call.
+Generate Obsidian-friendly notes using a two step process: a metadata call
+followed by a rich body call. A small web UI lets you drag-and-drop a CSV of
+subjects or type a single subject.
 
-## Configuration
+## Quick start
 
-The tool talks to a local API. Defaults are baked into the code but can be overridden via environment variables or a `.env` file copied from `.env.example`.
-
-* `API_URL` – API endpoint (default `http://192.168.50.4:8787/infer`)
-* `NOTES_DIR` – where notes are written
-* `PER_REQUEST_DELAY_SECONDS` – spacing between CSV subjects
-* `DELAY_BETWEEN_CALLS_SECONDS` – delay between metadata/body calls
-
-## Installation
-
-Install with `pipx` or via Docker.
+Install with [`pipx`](https://pypa.github.io/pipx/):
 
 ```bash
-pipx install .
-# or
-pipx run obsidian-note-gen "Ancient Bridges"
+pipx install git+https://github.com/<you>/obsidian-note-gen.git
 ```
 
-### Docker
+Run the app:
 
 ```bash
-docker build -t obsidian-note-gen:latest .
-docker run --rm -e API_URL=http://192.168.50.4:8787/infer \
-  -e NOTES_DIR=/notes \
-  -v "$HOME/Notes":/notes \
-  obsidian-note-gen:latest "Ancient Bridges"
+obsidian-note-gen
 ```
 
-## Usage
+It opens `http://127.0.0.1:8789` in your browser (or prints the URL). Set your
+API URL and notes directory in the UI, then either type a subject or
+drag-and-drop a CSV file (first column = subject). The application waits 30 s
+between the metadata and body calls and 120 s between CSV rows by default.
 
-Generate a single subject:
+The API is expected to return JSON envelopes like:
 
-```bash
-obsidian-note-gen "Ancient Bridges"
+```json
+{"ok": true, "output": "..."}
 ```
 
-Or process a CSV of subjects spaced apart by `PER_REQUEST_DELAY_SECONDS`:
+Generated Markdown notes contain YAML front matter compatible with
+Obsidian's Properties view.
 
-```bash
-obsidian-note-gen --file subjects.csv
-```
-
-The resulting Markdown contains YAML front matter suitable for Obsidian's Properties view.

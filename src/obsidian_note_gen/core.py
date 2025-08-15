@@ -1,21 +1,30 @@
 from __future__ import annotations
-import argparse
+
+"""Core two-call note generation logic."""
+
 import csv
 import datetime as dt
 import json
 import os
 import re
-import sys
 import tempfile
 import time
 import urllib.request
-import urllib.error
-from typing import List
+from dataclasses import dataclass
+from typing import IO, List
 
-API_URL = os.environ.get("API_URL", "http://192.168.50.4:8787/infer")
-NOTES_DIR = os.environ.get("NOTES_DIR", os.path.expanduser("~/Notes"))
-PER_REQUEST_DELAY_SECONDS = int(os.environ.get("PER_REQUEST_DELAY_SECONDS", "120"))
-DELAY_BETWEEN_CALLS_SECONDS = int(os.environ.get("DELAY_BETWEEN_CALLS_SECONDS", "30"))
+
+DEFAULT_API_URL = "http://192.168.50.4:8787/infer"
+DEFAULT_NOTES_DIR = os.path.expanduser("~/Notes")
+
+
+@dataclass
+class Delays:
+    """Container for delay settings."""
+
+    meta_to_content: int = 30
+    between_rows: int = 120
+
 
 TOPIC_LIST: List[str] = [
     "Computers & Information",
@@ -41,18 +50,18 @@ TOPIC_LIST: List[str] = [
 ]
 
 
-def iso_now():
+def iso_now() -> str:
     return dt.datetime.now().strftime("%Y-%m-%dT%H:%M:%S%z")
 
 
-def slug_file(s):
+def slug_file(s: str) -> str:
     return (
         re.sub(r"-{2,}", "-", re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-"))
         or "note"
     )
 
 
-def slug_tag(s):
+def slug_tag(s: str) -> str:
     return re.sub(
         r"-{2,}",
         "-",
@@ -62,20 +71,20 @@ def slug_tag(s):
     )
 
 
-def escape_yaml(s):
+def escape_yaml(s: str) -> str:
     return s.replace('"', '\\"')
 
 
-def first_token_word(s):
+def first_token_word(s: str) -> str:
     tok = re.sub(r"[^A-Za-z0-9]+", " ", s).strip().split()
     return tok[0].lower() if tok else "topic"
 
 
-def ensure_dir(p):
+def ensure_dir(p: str) -> None:
     os.makedirs(p, exist_ok=True)
 
 
-def atomic_write(path: str, data: str):
+def atomic_write(path: str, data: str) -> None:
     ensure_dir(os.path.dirname(path))
     base = os.path.basename(path)
     with tempfile.NamedTemporaryFile(
@@ -105,8 +114,8 @@ def http_json_post(url: str, payload: dict, timeout: int = 120) -> dict:
         return {"ok": False, "output": "", "raw": body}
 
 
-def api_infer(prompt: str) -> str:
-    env = http_json_post(API_URL, {"prompt": prompt})
+def api_infer(prompt: str, api_url: str) -> str:
+    env = http_json_post(api_url, {"prompt": prompt})
     out = env.get("output", "")
     return out if isinstance(out, str) else json.dumps(out)
 
@@ -177,25 +186,13 @@ def sanitize_topics(tops: list[str]) -> list[str]:
 def fallback_topic_for_subject(subject: str) -> str:
     s = subject.lower()
     checks = [
-        (
-            ("ai", "llm", "data", "internet", "comput", "info"),
-            "Computers & Information",
-        ),
+        (("ai", "llm", "data", "internet", "comput", "info"), "Computers & Information"),
         (("philosophy", "ethic", "logic", "epistem"), "Philosophy"),
-        (
-            ("psychology", "adhd", "mental", "therapy", "self-help"),
-            "Psychology & Self-Help",
-        ),
+        (("psychology", "adhd", "mental", "therapy", "self-help"), "Psychology & Self-Help"),
         (("religion", "spiritual", "theolog", "mytholog"), "Religion & Spirituality"),
         (("sociolog", "anthropolog", "culture", "gender"), "Social Sciences"),
-        (
-            ("politic", "policy", "government", "law", "election"),
-            "Politics & Government",
-        ),
-        (
-            ("business", "startup", "market", "econom", "finance", "invest"),
-            "Economics & Business",
-        ),
+        (("politic", "policy", "government", "law", "election"), "Politics & Government"),
+        (("business", "startup", "market", "econom", "finance", "invest"), "Economics & Business"),
         (("education", "teaching", "curriculum", "pedagog"), "Education & Teaching"),
         (("linguist", "grammar", "language", "translate"), "Language & Linguistics"),
         (("science", "scientific method"), "Science (General)"),
@@ -204,15 +201,9 @@ def fallback_topic_for_subject(subject: str) -> str:
         (("chemistry", "chemical", "compound", "reagent"), "Chemistry"),
         (("biology", "genetic", "zoolog", "ecolog", "flora", "fauna"), "Biology"),
         (("medicine", "health", "clinic", "nutrition", "sleep"), "Medicine & Health"),
-        (
-            ("engineer", "robotic", "civil", "electrical", "mechanical", "technology"),
-            "Engineering & Technology",
-        ),
+        (("engineer", "robotic", "civil", "electrical", "mechanical", "technology"), "Engineering & Technology"),
         (("art", "design", "photo", "architec"), "Arts & Design"),
-        (
-            ("literature", "writing", "poetry", "novel", "criticism"),
-            "Literature & Writing",
-        ),
+        (("literature", "writing", "poetry", "novel", "criticism"), "Literature & Writing"),
         (("history", "geograph", "cartograph", "histor"), "History & Geography"),
         (("travel", "touris", "hobby", "sport", "recreat"), "Travel & Recreation"),
     ]
@@ -253,73 +244,67 @@ def render_markdown(subject, title, one_word_topic, topics, tag_slugs, body) -> 
     return front + (body or "").rstrip() + "\n"
 
 
-def write_note(subject: str, content: str) -> str:
-    notes_dir = os.environ.get("NOTES_DIR", NOTES_DIR)
+def write_note(subject: str, content: str, notes_dir: str) -> str:
     path = os.path.join(notes_dir, slug_file(subject) + ".md")
     atomic_write(path, content)
     return path
 
 
-def process_subject(subject: str) -> str | None:
+def process_subject(
+    subject: str,
+    api_url: str = DEFAULT_API_URL,
+    notes_dir: str = DEFAULT_NOTES_DIR,
+    delays: Delays | None = None,
+) -> str | None:
     subject = subject.strip()
     if not subject:
         return None
-    meta_raw = api_infer(build_prompt_meta(subject))
+    delays = delays or Delays()
+    meta_raw = api_infer(build_prompt_meta(subject), api_url)
     title, topic, topics, tags = parse_meta_output(meta_raw)
     if not title:
         title = subject
     if not topic or " " in topic:
         topic = first_token_word(subject)
     topics = sanitize_topics(topics) or [fallback_topic_for_subject(subject)]
-    time.sleep(int(os.environ.get("DELAY_BETWEEN_CALLS_SECONDS", "30")))
-    body = (
-        api_infer(build_prompt_body(subject, topic, topics, tags))
-        or "(Model returned no body text.)"
+    time.sleep(delays.meta_to_content)
+    body = api_infer(build_prompt_body(subject, topic, topics, tags), api_url) or (
+        "(Model returned no body text.)"
     )
     tag_slugs = build_yaml_tags(topics, tags, topic)
     md = render_markdown(subject, title, topic, topics, tag_slugs, body)
-    return write_note(subject, md)
+    return write_note(subject, md, notes_dir)
 
 
-def process_file(path: str):
-    with open(path, "r", encoding="utf-8") as f:
-        reader = csv.reader(f)
-        first = True
-        for row in reader:
-            if not row:
-                continue
-            subj = (row[0] or "").strip()
-            if not subj or subj.startswith("#"):
-                continue
-            p = process_subject(subj)
-            if p:
-                print(f"Created → {p}")
-            if not first:
-                time.sleep(int(os.environ.get("PER_REQUEST_DELAY_SECONDS", "120")))
-            first = False
+def process_csv(
+    fileobj: IO[str],
+    api_url: str = DEFAULT_API_URL,
+    notes_dir: str = DEFAULT_NOTES_DIR,
+    delays: Delays | None = None,
+) -> List[str]:
+    delays = delays or Delays()
+    reader = csv.reader(fileobj)
+    first = True
+    paths: List[str] = []
+    for row in reader:
+        if not row:
+            continue
+        subj = (row[0] or "").strip()
+        if not subj or subj.startswith("#"):
+            continue
+        p = process_subject(
+            subj,
+            api_url=api_url,
+            notes_dir=notes_dir,
+            delays=Delays(delays.meta_to_content, delays.between_rows),
+        )
+        if p:
+            paths.append(p)
+        if not first:
+            time.sleep(delays.between_rows)
+        first = False
+    return paths
 
 
-def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(description="Two-call Obsidian note generator")
-    ap.add_argument("subject", nargs="*", help="Subject")
-    ap.add_argument("--file", "-f", help="CSV/text (first column used)")
-    args = ap.parse_args(argv)
-    notes_dir = os.environ.get("NOTES_DIR", NOTES_DIR)
-    os.makedirs(notes_dir, exist_ok=True)
-    if args.file:
-        process_file(args.file)
-        return 0
-    subject = " ".join(args.subject).strip()
-    if not subject:
-        ap.print_help()
-        return 2
-    p = process_subject(subject)
-    if p:
-        print(f"Created → {p}")
-    else:
-        print("No output")
-    return 0
+__all__ = ["Delays", "process_subject", "process_csv"]
 
-
-if __name__ == "__main__":
-    sys.exit(main())
