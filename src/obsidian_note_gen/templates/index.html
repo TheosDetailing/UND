@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Obsidian Note Generator</title>
+    <script src="{{ url_for('static', filename='app.js') }}" defer></script>
+    <style>
+      #drop-zone {
+        border: 2px dashed #999;
+        padding: 20px;
+        text-align: center;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Obsidian Note Generator</h1>
+    <label>API URL <input id="api_url" value="{{ config.api_url }}" /></label><br />
+    <label>Notes directory <input id="notes_dir" value="{{ config.notes_dir }}" /></label><br />
+    <label>Delay meta→content (s) <input id="delay_meta" type="number" value="{{ config.delay_meta_content }}" /></label><br />
+    <label>Delay between CSV rows (s) <input id="delay_rows" type="number" value="{{ config.delay_between_rows }}" /></label><br />
+
+    <h3>Create single note</h3>
+    <form id="one-form">
+      <input id="subject" name="subject" placeholder="Subject" />
+      <button type="submit">Create Note</button>
+    </form>
+
+    <h3>Upload CSV</h3>
+    <div id="drop-zone">Drop CSV here or click to select</div>
+    <input type="file" id="csvfile" style="display:none" accept=".csv" />
+
+    <pre id="log"></pre>
+  </body>
+</html>
+
