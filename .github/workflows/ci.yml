@@ -1,0 +1,28 @@
+name: CI
+on:
+  push: { branches: ["main"] }
+  pull_request: {}
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - name: Install
+        run: pip install -U pip build
+      - name: Lint (ruff via pipx or skip if you want stdlib-only)
+        run: |
+          pip install ruff
+          ruff check src
+      - name: Run tests
+        run: |
+          pip install pytest
+          pytest -q
+      - name: Build package
+        run: python -m build
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/*
