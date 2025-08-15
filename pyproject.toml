@@ -1,0 +1,22 @@
+[project]
+name = "obsidian-note-gen"
+version = "0.1.0"
+description = "Two-call Obsidian note generator (metadata then rich content)"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+authors = [{ name = "Your Name" }]
+dependencies = []
+
+[project.scripts]
+obsidian-note-gen = "obsidian_note_gen.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+ignore = ["E701", "E702"]
