@@ -7,6 +7,19 @@ function getConfig() {
   };
 }
 
+function applyTheme(dark) {
+  document.body.classList.toggle('dark', dark);
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+}
+
+const themeToggle = document.getElementById('dark-toggle');
+if (themeToggle) {
+  themeToggle.addEventListener('change', () => applyTheme(themeToggle.checked));
+  const saved = localStorage.getItem('theme') === 'dark';
+  themeToggle.checked = saved;
+  applyTheme(saved);
+}
+
 document.getElementById('one-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const data = new FormData();

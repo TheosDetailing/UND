@@ -5,6 +5,21 @@
     <title>Obsidian Note Generator</title>
     <script src="{{ url_for('static', filename='app.js') }}" defer></script>
     <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body.dark {
+        background-color: #121212;
+        color: #e0e0e0;
+      }
+      body.dark input,
+      body.dark button,
+      body.dark textarea,
+      body.dark select {
+        background-color: #333;
+        color: #e0e0e0;
+        border-color: #555;
+      }
       #drop-zone {
         border: 2px dashed #999;
         padding: 20px;
@@ -15,6 +30,7 @@
   </head>
   <body>
     <h1>Obsidian Note Generator</h1>
+    <label><input type="checkbox" id="dark-toggle" /> Dark mode</label><br />
     <label>API URL <input id="api_url" value="{{ config.api_url }}" /></label><br />
     <label>Notes directory <input id="notes_dir" value="{{ config.notes_dir }}" /></label><br />
     <label>Delay meta→content (s) <input id="delay_meta" type="number" value="{{ config.delay_meta_content }}" /></label><br />
@@ -33,4 +49,3 @@
     <pre id="log"></pre>
   </body>
 </html>
-
